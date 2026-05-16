@@ -27,6 +27,9 @@ interface ShiftDao {
     @Query("DELETE FROM shifts WHERE date >= :startDate AND date <= :endDate")
     suspend fun deleteForRange(startDate: String, endDate: String)
 
+    @Query("DELETE FROM shifts")
+    suspend fun deleteAll()
+
     @Query("SELECT COUNT(*) FROM shifts WHERE employeeId = :employeeId AND date LIKE :yearMonth || '-%'")
     fun countShiftsForEmployeeInMonth(employeeId: Long, yearMonth: String): Flow<Int>
 

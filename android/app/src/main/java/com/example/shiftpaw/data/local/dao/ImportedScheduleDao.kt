@@ -14,4 +14,10 @@ interface ImportedScheduleDao {
 
     @Insert
     suspend fun insert(schedule: ImportedScheduleEntity): Long
+
+    @Query("DELETE FROM imported_schedules")
+    suspend fun deleteAll()
+
+    @Query("DELETE FROM imported_schedules WHERE scheduleMonth = :month")
+    suspend fun deleteByMonth(month: String)
 }

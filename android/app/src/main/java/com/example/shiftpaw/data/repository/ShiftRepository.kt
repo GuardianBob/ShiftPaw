@@ -61,6 +61,19 @@ class ShiftRepository @Inject constructor(
     fun nextShift(employeeId: Long): Flow<ShiftEntity?> =
         shiftDao.nextShiftForEmployee(employeeId, LocalDate.now().toString())
 
+    suspend fun clearShiftsForMonth(yearMonth: String) {
+        val start = LocalDate.parse("$yearMonth-01")
+        val end = start.withDayOfMonth(start.lengthOfMonth())
+        shiftDao.deleteForRange(start.toString(), end.toString())
+        // Also clear imported schedule records for that month
+        importedScheduleDao.deleteByMonth(yearMonth)
+    }
+
+    suspend fun clearAllShifts() {
+        shiftDao.deleteAll()
+        importedScheduleDao.deleteAll()
+    }
+
     // --- Mapping helpers ---
     private fun groupToShiftDays(entities: List<ShiftEntity>): List<ShiftDay> =
         entities.groupBy { it.date }
