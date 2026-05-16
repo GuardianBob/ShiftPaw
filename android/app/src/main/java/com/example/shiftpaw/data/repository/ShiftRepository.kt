@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,6 +52,14 @@ class ShiftRepository @Inject constructor(
     }
 
     fun getImportedSchedules() = importedScheduleDao.getAll()
+
+    fun shiftsThisMonthCount(employeeId: Long): Flow<Int> {
+        val yearMonth = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        return shiftDao.countShiftsForEmployeeInMonth(employeeId, yearMonth)
+    }
+
+    fun nextShift(employeeId: Long): Flow<ShiftEntity?> =
+        shiftDao.nextShiftForEmployee(employeeId, LocalDate.now().toString())
 
     // --- Mapping helpers ---
     private fun groupToShiftDays(entities: List<ShiftEntity>): List<ShiftDay> =

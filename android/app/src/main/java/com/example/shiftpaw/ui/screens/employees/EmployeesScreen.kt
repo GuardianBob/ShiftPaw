@@ -44,11 +44,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.shiftpaw.domain.model.Employee
 import kotlinx.coroutines.launch
-
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmployeesScreen(viewModel: EmployeesViewModel = hiltViewModel()) {
-    val employees by viewModel.employees.collectAsState()
+    val employeesWithStats by viewModel.employeesWithStats.collectAsState()
+    val employees = employeesWithStats.map { it.employee }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -77,8 +79,8 @@ fun EmployeesScreen(viewModel: EmployeesViewModel = hiltViewModel()) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(employees, key = { it.id }) { employee ->
-                    EmployeeCard(employee = employee)
+                items(employeesWithStats, key = { it.employee.id }) { empWithStats ->
+                    EmployeeCard(empWithStats = empWithStats)
                 }
             }
         }
@@ -86,7 +88,9 @@ fun EmployeesScreen(viewModel: EmployeesViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun EmployeeCard(employee: Employee) {
+private fun EmployeeCard(empWithStats: EmployeeWithStats) {
+    val employee = empWithStats.employee
+    val nextShiftFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
     val avatarColor = try {
         Color(android.graphics.Color.parseColor(employee.color))
     } catch (_: Exception) {
@@ -139,6 +143,19 @@ private fun EmployeeCard(employee: Employee) {
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
+                Text(
+                    text = "${empWithStats.shiftsThisMonth} shifts this month",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                Text(
+                    text = empWithStats.nextShiftDate
+                        ?.let { "Next: ${it.format(nextShiftFormatter)}" }
+                        ?: "No upcoming shifts",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
