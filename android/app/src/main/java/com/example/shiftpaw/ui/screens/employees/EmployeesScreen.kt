@@ -18,11 +18,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -45,10 +48,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.shiftpaw.domain.model.Employee
 import kotlinx.coroutines.launch
 
+private val PrimaryGoldTint = Color(0xFFC9A74D).copy(alpha = 0.12f)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EmployeesScreen(viewModel: EmployeesViewModel = hiltViewModel()) {
     val employees by viewModel.employees.collectAsState()
+    val primaryEmployeeId by viewModel.primaryEmployeeId.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -78,7 +84,11 @@ fun EmployeesScreen(viewModel: EmployeesViewModel = hiltViewModel()) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(employees, key = { it.id }) { employee ->
-                    EmployeeCard(employee = employee)
+                    EmployeeCard(
+                        employee = employee,
+                        isPrimary = employee.id == primaryEmployeeId,
+                        onTogglePrimary = { viewModel.setPrimary(employee.id) }
+                    )
                 }
             }
         }
@@ -86,7 +96,11 @@ fun EmployeesScreen(viewModel: EmployeesViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun EmployeeCard(employee: Employee) {
+private fun EmployeeCard(
+    employee: Employee,
+    isPrimary: Boolean,
+    onTogglePrimary: () -> Unit
+) {
     val avatarColor = try {
         Color(android.graphics.Color.parseColor(employee.color))
     } catch (_: Exception) {
@@ -95,11 +109,17 @@ private fun EmployeeCard(employee: Employee) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isPrimary)
+                MaterialTheme.colorScheme.surface.copy(alpha = 1f).let { PrimaryGoldTint }
+            else MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(if (isPrimary) PrimaryGoldTint else Color.Transparent)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -139,6 +159,15 @@ private fun EmployeeCard(employee: Employee) {
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
+            }
+
+            // Primary star toggle
+            IconButton(onClick = onTogglePrimary) {
+                Icon(
+                    imageVector = if (isPrimary) Icons.Filled.Star else Icons.Outlined.Star,
+                    contentDescription = if (isPrimary) "Remove primary" else "Set as primary",
+                    tint = if (isPrimary) Color(0xFFC9A74D) else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
