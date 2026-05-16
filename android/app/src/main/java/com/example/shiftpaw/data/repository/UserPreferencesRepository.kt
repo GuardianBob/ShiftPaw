@@ -3,6 +3,7 @@ package com.example.shiftpaw.data.repository
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -16,7 +17,9 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 data class UserPreferences(
     val selectedEmployeeId: Long = -1L,
-    val lastViewedMonth: String = ""  // yyyy-MM
+    val lastViewedMonth: String = "",  // yyyy-MM
+    val primaryEmployeeId: Long = -1L,
+    val darkMode: Boolean = false
 )
 
 @Singleton
@@ -26,12 +29,16 @@ class UserPreferencesRepository @Inject constructor(
     private object Keys {
         val SELECTED_EMPLOYEE_ID = longPreferencesKey("selected_employee_id")
         val LAST_VIEWED_MONTH = stringPreferencesKey("last_viewed_month")
+        val PRIMARY_EMPLOYEE_ID = longPreferencesKey("primary_employee_id")
+        val DARK_MODE = booleanPreferencesKey("dark_mode")
     }
 
     val preferences = context.dataStore.data.map { prefs ->
         UserPreferences(
             selectedEmployeeId = prefs[Keys.SELECTED_EMPLOYEE_ID] ?: -1L,
-            lastViewedMonth = prefs[Keys.LAST_VIEWED_MONTH] ?: ""
+            lastViewedMonth = prefs[Keys.LAST_VIEWED_MONTH] ?: "",
+            primaryEmployeeId = prefs[Keys.PRIMARY_EMPLOYEE_ID] ?: -1L,
+            darkMode = prefs[Keys.DARK_MODE] ?: false
         )
     }
 
@@ -41,5 +48,13 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setLastViewedMonth(month: String) {
         context.dataStore.edit { it[Keys.LAST_VIEWED_MONTH] = month }
+    }
+
+    suspend fun setPrimaryEmployee(id: Long) {
+        context.dataStore.edit { it[Keys.PRIMARY_EMPLOYEE_ID] = id }
+    }
+
+    suspend fun setDarkMode(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DARK_MODE] = enabled }
     }
 }
