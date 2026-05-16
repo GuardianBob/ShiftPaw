@@ -39,7 +39,7 @@ import androidx.compose.foundation.clickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigateToImport: () -> Unit = {}) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val isDarkTheme = isSystemInDarkTheme()
@@ -70,11 +70,7 @@ fun SettingsScreen() {
                 trailingContent = {
                     Icon(Icons.Filled.ChevronRight, contentDescription = null)
                 },
-                modifier = Modifier.clickable {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("DOCX import coming soon")
-                    }
-                }
+                modifier = Modifier.clickable { onNavigateToImport() }
             )
 
             HorizontalDivider()

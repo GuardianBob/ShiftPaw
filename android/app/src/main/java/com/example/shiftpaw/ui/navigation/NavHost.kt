@@ -25,12 +25,18 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.shiftpaw.ui.screens.calendar.CalendarScreen
 import com.example.shiftpaw.ui.screens.employees.EmployeesScreen
+import com.example.shiftpaw.ui.screens.importschedule.ImportScheduleScreen
 import com.example.shiftpaw.ui.screens.settings.SettingsScreen
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object Calendar : Screen("calendar", "Calendar", Icons.Filled.CalendarMonth)
     object Employees : Screen("employees", "Employees", Icons.Filled.People)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings)
+}
+
+// Non-tab route constant
+object ImportRoute {
+    const val ROUTE = "import"
 }
 
 private val bottomNavItems = listOf(Screen.Calendar, Screen.Employees, Screen.Settings)
@@ -46,9 +52,23 @@ fun ShiftPawNavHost() {
             startDestination = Screen.Calendar.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Calendar.route) { CalendarScreen() }
+            composable(Screen.Calendar.route) {
+                CalendarScreen(onNavigateToImport = { navController.navigate(ImportRoute.ROUTE) })
+            }
             composable(Screen.Employees.route) { EmployeesScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) {
+                SettingsScreen(onNavigateToImport = { navController.navigate(ImportRoute.ROUTE) })
+            }
+            composable(ImportRoute.ROUTE) {
+                ImportScheduleScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToCalendar = {
+                        navController.navigate(Screen.Calendar.route) {
+                            popUpTo(ImportRoute.ROUTE) { inclusive = true }
+                        }
+                    }
+                )
+            }
         }
     }
 }

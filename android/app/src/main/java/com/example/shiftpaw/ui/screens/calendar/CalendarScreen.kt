@@ -22,15 +22,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -57,7 +60,10 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
+fun CalendarScreen(
+    onNavigateToImport: () -> Unit = {},
+    viewModel: CalendarViewModel = hiltViewModel(),
+) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val shiftDays by viewModel.shiftDays.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -66,11 +72,19 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    Scaffold(
+        floatingActionButton = {
+            FloatingActionButton(onClick = onNavigateToImport) {
+                Icon(Icons.Filled.Upload, contentDescription = "Import Schedule")
+            }
+        }
+    ) { scaffoldPadding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 8.dp)
+            .padding(scaffoldPadding)
     ) {
         Spacer(Modifier.height(8.dp))
 
@@ -129,6 +143,7 @@ fun CalendarScreen(viewModel: CalendarViewModel = hiltViewModel()) {
             )
         }
     }
+    } // end Scaffold
 }
 
 @Composable
