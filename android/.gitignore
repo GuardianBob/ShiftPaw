@@ -1,0 +1,32 @@
+# Android generated
+*.iml
+.gradle/
+/local.properties
+local.properties
+/build/
+/app/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+
+# IntelliJ / Android Studio
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+
+# Kotlin / KSP compiler cache
+.kotlin/
+
+# OS
+.DS_Store
+
+# Signing keys — never commit
+*.jks
+*.keystore
+
+# Local build helpers
+build_out.txt
+build_run.bat
