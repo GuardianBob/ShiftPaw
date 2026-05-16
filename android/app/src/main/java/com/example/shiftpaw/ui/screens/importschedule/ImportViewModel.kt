@@ -2,6 +2,7 @@ package com.example.shiftpaw.ui.screens.importschedule
 
 import android.content.Context
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.shiftpaw.data.parser.DocxScheduleParser
@@ -53,8 +54,9 @@ class ImportViewModel @Inject constructor(
         _uiState.value = ImportUiState.Parsing
         viewModelScope.launch {
             try {
-                val fileName = uri.lastPathSegment
-                    ?.substringAfterLast("/")
+                // Get real filename from DocumentFile (content:// URIs don't expose it via lastPathSegment)
+                val fileName = DocumentFile.fromSingleUri(context, uri)?.name
+                    ?: uri.lastPathSegment
                     ?: uri.toString().substringAfterLast("/")
 
                 val stream = context.contentResolver.openInputStream(uri)

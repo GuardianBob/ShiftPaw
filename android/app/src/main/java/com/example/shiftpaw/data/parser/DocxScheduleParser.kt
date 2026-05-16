@@ -79,9 +79,7 @@ class DocxScheduleParser @Inject constructor() {
         val employeeOrder = mutableListOf<String>()   // index+1 = tempId
         val employeeTempIds = mutableMapOf<String, Long>() // initials -> tempId
 
-        val scheduleMonth = parseScheduleMonthFromFileName(fileName, errors)
-        val yearStr = scheduleMonth.substringBefore("-")
-        val monthStr = scheduleMonth.substringAfter("-")
+        var scheduleMonth = parseScheduleMonthFromFileName(fileName, errors)
 
         try {
             val doc = XWPFDocument(inputStream)
@@ -91,6 +89,14 @@ class DocxScheduleParser @Inject constructor() {
                 return ParseResult(emptyList(), scheduleMonth, emptyList(),
                     listOf("No tables found in document"))
             }
+
+            // If filename parsing fell back to current month, try document header
+            if (scheduleMonth == fallbackMonth()) {
+                scheduleMonth = parseMonthFromDocument(tables, errors)
+            }
+
+            val yearStr = scheduleMonth.substringBefore("-")
+            val monthStr = scheduleMonth.substringAfter("-")
 
             for (table in tables) {
                 val maxCols = table.rows.maxOfOrNull { it.tableCells.size } ?: 0
@@ -206,6 +212,47 @@ class DocxScheduleParser @Inject constructor() {
 
     // ── Month extraction ──────────────────────────────────────────────────────
 
+    private fun fallbackMonth(): String {
+        val now = LocalDate.now()
+        return "${now.year}-${now.monthValue.toString().padStart(2, '0')}"
+    }
+
+    /**
+     * Scan the first few rows of all tables for a month name + year pattern.
+     * DOCX headers typically contain text like "October 2026" or "Schedule — March 2026".
+     */
+    private fun parseMonthFromDocument(
+        tables: List<org.apache.poi.xwpf.usermodel.XWPFTable>,
+        errors: MutableList<String>
+    ): String {
+        val yearPattern = Regex("""\b(\d{4})\b""")
+
+        for (table in tables) {
+            // Only scan the first 3 rows — headers are at the top
+            val headerRows = table.rows.take(3)
+            for (row in headerRows) {
+                val fullText = row.tableCells.joinToString(" ") { it.text.trim() }
+                if (fullText.isBlank()) continue
+
+                val lowerText = fullText.lowercase()
+
+                // Find year
+                val yearMatch = yearPattern.find(fullText)
+                val year = yearMatch?.groupValues?.get(1) ?: LocalDate.now().year.toString()
+
+                // Look for month names
+                for ((monthName, monthNum) in MONTH_NAMES) {
+                    if (monthName in lowerText) {
+                        return "$year-$monthNum"
+                    }
+                }
+            }
+        }
+
+        errors.add("Could not detect schedule month from document header, using current month")
+        return fallbackMonth()
+    }
+
     private fun parseScheduleMonthFromFileName(
         fileName: String, errors: MutableList<String>
     ): String {
@@ -229,8 +276,7 @@ class DocxScheduleParser @Inject constructor() {
             }
         }
 
-        errors.add("Could not parse schedule month from filename '$fileName', using current month")
-        val now = LocalDate.now()
-        return "${now.year}-${now.monthValue.toString().padStart(2, '0')}"
+        errors.add("Filename month not found — will try document header")
+        return fallbackMonth()
     }
 }

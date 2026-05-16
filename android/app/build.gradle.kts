@@ -75,6 +75,9 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // DocumentFile
+    implementation(libs.androidx.documentfile)
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
