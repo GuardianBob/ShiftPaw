@@ -68,7 +68,7 @@ fun CalendarScreen(
     val shiftDays by viewModel.shiftDays.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val employees by viewModel.employees.collectAsState()
-    val selectedEmployeeId by viewModel.selectedEmployeeId.collectAsState()
+    val selectedEmployeeIds by viewModel.selectedEmployeeIds.collectAsState()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -108,7 +108,7 @@ fun CalendarScreen(
             shiftDays = shiftDays,
             employees = employees,
             selectedDate = selectedDate,
-            selectedEmployeeId = selectedEmployeeId,
+            selectedEmployeeIds = selectedEmployeeIds,
             onDayClick = viewModel::selectDate
         )
 
@@ -117,8 +117,9 @@ fun CalendarScreen(
         // Employee filter chips
         EmployeeFilterRow(
             employees = employees,
-            selectedEmployeeId = selectedEmployeeId,
-            onSelectEmployee = viewModel::selectEmployee
+            selectedEmployeeIds = selectedEmployeeIds,
+            onToggleEmployee = viewModel::toggleEmployee,
+            onClearFilter = viewModel::clearEmployeeFilter
         )
 
         Spacer(Modifier.height(8.dp))
@@ -129,7 +130,7 @@ fun CalendarScreen(
         val dayShifts = shiftDays
             .find { it.date == selectedDate }
             ?.shifts
-            ?.filter { selectedEmployeeId == -1L || it.employeeId == selectedEmployeeId }
+            ?.filter { selectedEmployeeIds.isEmpty() || it.employeeId in selectedEmployeeIds }
             ?: emptyList()
 
         ModalBottomSheet(
@@ -195,7 +196,7 @@ private fun CalendarGrid(
     shiftDays: List<ShiftDay>,
     employees: List<Employee>,
     selectedDate: LocalDate?,
-    selectedEmployeeId: Long,
+    selectedEmployeeIds: Set<Long>,
     onDayClick: (LocalDate) -> Unit
 ) {
     val firstDay = month.atDay(1)
@@ -223,7 +224,7 @@ private fun CalendarGrid(
                         shiftDay = date?.let { shiftDayMap[it] },
                         employees = employeeMap,
                         isSelected = date != null && date == selectedDate,
-                        selectedEmployeeId = selectedEmployeeId,
+                        selectedEmployeeIds = selectedEmployeeIds,
                         onClick = { if (date != null) onDayClick(date) }
                     )
                 }
@@ -240,14 +241,14 @@ private fun DayCell(
     shiftDay: ShiftDay?,
     employees: Map<Long, Employee>,
     isSelected: Boolean,
-    selectedEmployeeId: Long,
+    selectedEmployeeIds: Set<Long>,
     onClick: () -> Unit
 ) {
     val today = LocalDate.now()
     val isToday = date != null && date == today
 
     val filteredShifts = shiftDay?.shifts?.filter {
-        selectedEmployeeId == -1L || it.employeeId == selectedEmployeeId
+        selectedEmployeeIds.isEmpty() || it.employeeId in selectedEmployeeIds
     } ?: emptyList()
 
     Box(
@@ -318,8 +319,9 @@ private fun DayCell(
 @Composable
 private fun EmployeeFilterRow(
     employees: List<Employee>,
-    selectedEmployeeId: Long,
-    onSelectEmployee: (Long) -> Unit
+    selectedEmployeeIds: Set<Long>,
+    onToggleEmployee: (Long) -> Unit,
+    onClearFilter: () -> Unit
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -327,8 +329,8 @@ private fun EmployeeFilterRow(
     ) {
         item {
             FilterChip(
-                selected = selectedEmployeeId == -1L,
-                onClick = { onSelectEmployee(-1L) },
+                selected = selectedEmployeeIds.isEmpty(),
+                onClick = onClearFilter,
                 label = { Text("All") },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -343,8 +345,8 @@ private fun EmployeeFilterRow(
                 MaterialTheme.colorScheme.primary
             }
             FilterChip(
-                selected = selectedEmployeeId == emp.id,
-                onClick = { onSelectEmployee(emp.id) },
+                selected = emp.id in selectedEmployeeIds,
+                onClick = { onToggleEmployee(emp.id) },
                 label = { Text(emp.name) },
                 leadingIcon = {
                     Box(
