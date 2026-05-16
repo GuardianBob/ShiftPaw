@@ -1,13 +1,8 @@
 package com.example.shiftpaw.ui.screens.settings
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DarkMode
@@ -26,24 +21,19 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateToImport: () -> Unit = {}) {
+fun SettingsScreen(
+    onNavigateToImport: () -> Unit = {},
+    isDarkMode: Boolean = false,
+    onToggleDarkMode: () -> Unit = {}
+) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val isDarkTheme = isSystemInDarkTheme()
-    var darkModeToggle by remember { mutableStateOf(isDarkTheme) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Settings") }) },
@@ -80,7 +70,7 @@ fun SettingsScreen(onNavigateToImport: () -> Unit = {}) {
 
             ListItem(
                 headlineContent = { Text("Dark Mode") },
-                supportingContent = { Text("Follow system setting") },
+                supportingContent = { Text("Override system theme") },
                 leadingContent = {
                     Icon(
                         Icons.Filled.DarkMode,
@@ -90,8 +80,8 @@ fun SettingsScreen(onNavigateToImport: () -> Unit = {}) {
                 },
                 trailingContent = {
                     Switch(
-                        checked = darkModeToggle,
-                        onCheckedChange = { darkModeToggle = it }
+                        checked = isDarkMode,
+                        onCheckedChange = { onToggleDarkMode() }
                     )
                 }
             )

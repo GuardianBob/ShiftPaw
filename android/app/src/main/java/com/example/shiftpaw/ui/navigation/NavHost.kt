@@ -42,7 +42,10 @@ object ImportRoute {
 private val bottomNavItems = listOf(Screen.Calendar, Screen.Employees, Screen.Settings)
 
 @Composable
-fun ShiftPawNavHost() {
+fun ShiftPawNavHost(
+    isDarkMode: Boolean = false,
+    onToggleDarkMode: () -> Unit = {}
+) {
     val navController = rememberNavController()
     Scaffold(
         bottomBar = { ShiftPawBottomBar(navController) }
@@ -57,7 +60,11 @@ fun ShiftPawNavHost() {
             }
             composable(Screen.Employees.route) { EmployeesScreen() }
             composable(Screen.Settings.route) {
-                SettingsScreen(onNavigateToImport = { navController.navigate(ImportRoute.ROUTE) })
+                SettingsScreen(
+                    onNavigateToImport = { navController.navigate(ImportRoute.ROUTE) },
+                    isDarkMode = isDarkMode,
+                    onToggleDarkMode = onToggleDarkMode
+                )
             }
             composable(ImportRoute.ROUTE) {
                 ImportScheduleScreen(
