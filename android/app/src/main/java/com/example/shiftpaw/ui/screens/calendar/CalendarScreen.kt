@@ -1,5 +1,6 @@
 package com.example.shiftpaw.ui.screens.calendar
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -28,9 +29,13 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -121,6 +126,13 @@ fun CalendarScreen(
         )
 
         Spacer(Modifier.height(12.dp))
+
+        EmployeeDropdownFilter(
+            employees = employees,
+            selectedEmployeeIds = selectedEmployeeIds,
+            onToggleEmployee = viewModel::toggleEmployee,
+            onClearFilter = viewModel::clearEmployeeFilter
+        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -390,6 +402,138 @@ private fun shiftTypeColor(type: ShiftType): Color {
         ShiftType.NIGHT -> Color(0xFF1565C0)
         ShiftType.ON_CALL -> MaterialTheme.colorScheme.tertiary
         ShiftType.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Employee dropdown filter
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun EmployeeDropdownFilter(
+    employees: List<Employee>,
+    selectedEmployeeIds: Set<Long>,
+    onToggleEmployee: (Long) -> Unit,
+    onClearFilter: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column {
+        // Trigger row
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Group,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Filter Staff",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                if (selectedEmployeeIds.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(50.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = "${selectedEmployeeIds.size} selected",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = { onClearFilter(); expanded = false },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Clear filter",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // Dropdown body
+        AnimatedVisibility(visible = expanded) {
+            Surface(
+                shape = RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp),
+                shadowElevation = 4.dp,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    // "All Staff" row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onClearFilter() }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = selectedEmployeeIds.isEmpty(),
+                            onCheckedChange = { onClearFilter() }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("All Staff", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    HorizontalDivider()
+                    // Per-employee rows
+                    employees.forEach { emp ->
+                        val dotColor = try {
+                            Color(android.graphics.Color.parseColor(emp.color))
+                        } catch (_: Exception) {
+                            MaterialTheme.colorScheme.primary
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onToggleEmployee(emp.id) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = emp.id in selectedEmployeeIds,
+                                onCheckedChange = { onToggleEmployee(emp.id) }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(emp.name, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
