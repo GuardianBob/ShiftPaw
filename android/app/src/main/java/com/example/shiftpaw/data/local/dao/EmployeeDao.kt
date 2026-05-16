@@ -15,6 +15,12 @@ interface EmployeeDao {
     @Query("SELECT * FROM employees WHERE id = :id")
     suspend fun getById(id: Long): EmployeeEntity?
 
+    @Query("SELECT * FROM employees WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getByName(name: String): EmployeeEntity?
+
+    @Query("SELECT * FROM employees")
+    suspend fun getAllOnce(): List<EmployeeEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(employee: EmployeeEntity): Long
 
