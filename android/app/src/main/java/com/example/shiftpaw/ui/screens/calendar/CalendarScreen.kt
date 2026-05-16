@@ -1,5 +1,7 @@
 package com.example.shiftpaw.ui.screens.calendar
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,33 +16,32 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -57,7 +58,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.shiftpaw.domain.model.Employee
-import com.example.shiftpaw.domain.model.Shift
 import com.example.shiftpaw.domain.model.ShiftDay
 import com.example.shiftpaw.domain.model.ShiftType
 import java.time.DayOfWeek
@@ -68,7 +68,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
     onNavigateToImport: () -> Unit = {},
@@ -79,8 +78,6 @@ fun CalendarScreen(
     val selectedDate by viewModel.selectedDate.collectAsState()
     val employees by viewModel.employees.collectAsState()
     val selectedEmployeeIds by viewModel.selectedEmployeeIds.collectAsState()
-
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     Scaffold(
         floatingActionButton = {
@@ -125,35 +122,17 @@ fun CalendarScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Employee filter chips
-        EmployeeFilterRow(
+        Spacer(Modifier.height(12.dp))
+
+        SelectedDayCard(
+            selectedDate = selectedDate,
+            shiftDays = shiftDays,
             employees = employees,
             selectedEmployeeIds = selectedEmployeeIds,
-            onToggleEmployee = viewModel::toggleEmployee,
-            onClearFilter = viewModel::clearEmployeeFilter
+            onDismiss = viewModel::dismissDate
         )
 
         Spacer(Modifier.height(8.dp))
-    }
-
-    // Bottom sheet for selected day
-    if (selectedDate != null) {
-        val dayShifts = shiftDays
-            .find { it.date == selectedDate }
-            ?.shifts
-            ?.filter { selectedEmployeeIds.isEmpty() || it.employeeId in selectedEmployeeIds }
-            ?: emptyList()
-
-        ModalBottomSheet(
-            onDismissRequest = viewModel::dismissDate,
-            sheetState = sheetState
-        ) {
-            DayDetailSheet(
-                date = selectedDate!!,
-                shifts = dayShifts,
-                employees = employees
-            )
-        }
     }
     } // end Scaffold
 }
@@ -404,140 +383,6 @@ private fun DayCell(
 }
 
 @Composable
-private fun EmployeeFilterRow(
-    employees: List<Employee>,
-    selectedEmployeeIds: Set<Long>,
-    onToggleEmployee: (Long) -> Unit,
-    onClearFilter: () -> Unit
-) {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(horizontal = 4.dp)
-    ) {
-        item {
-            FilterChip(
-                selected = selectedEmployeeIds.isEmpty(),
-                onClick = onClearFilter,
-                label = { Text("All") },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
-        items(employees) { emp ->
-            val dotColor = try {
-                Color(android.graphics.Color.parseColor(emp.color))
-            } catch (_: Exception) {
-                MaterialTheme.colorScheme.primary
-            }
-            FilterChip(
-                selected = emp.id in selectedEmployeeIds,
-                onClick = { onToggleEmployee(emp.id) },
-                label = { Text(emp.name) },
-                leadingIcon = {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(dotColor)
-                    )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
-    }
-}
-
-@Composable
-private fun DayDetailSheet(
-    date: LocalDate,
-    shifts: List<Shift>,
-    employees: List<Employee>
-) {
-    val employeeMap = employees.associateBy { it.id }
-    val dateFormatter = DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault())
-    val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
-
-    Column(modifier = Modifier.padding(bottom = 32.dp)) {
-        Text(
-            text = date.format(dateFormatter),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-        )
-        HorizontalDivider()
-
-        if (shifts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No shifts scheduled",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            shifts.forEach { shift ->
-                val employee = employeeMap[shift.employeeId]
-                val shiftColor = shiftTypeColor(shift.shiftType)
-                ListItem(
-                    headlineContent = {
-                        Text(employee?.name ?: "Unknown", fontWeight = FontWeight.Medium)
-                    },
-                    supportingContent = {
-                        Text(
-                            "${shift.startTime.format(timeFormatter)} – ${shift.endTime.format(timeFormatter)}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    trailingContent = {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    shiftColor.copy(alpha = 0.15f),
-                                    MaterialTheme.shapes.small
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = shift.shiftType.name,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = shiftColor,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    },
-                    leadingContent = employee?.let { emp ->
-                        {
-                            val dotColor = try {
-                                Color(android.graphics.Color.parseColor(emp.color))
-                            } catch (_: Exception) {
-                                MaterialTheme.colorScheme.primary
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(dotColor)
-                            )
-                        }
-                    }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-            }
-        }
-    }
-}
-
-@Composable
 private fun shiftTypeColor(type: ShiftType): Color {
     return when (type) {
         ShiftType.DAY -> MaterialTheme.colorScheme.primary
@@ -545,5 +390,167 @@ private fun shiftTypeColor(type: ShiftType): Color {
         ShiftType.NIGHT -> Color(0xFF1565C0)
         ShiftType.ON_CALL -> MaterialTheme.colorScheme.tertiary
         ShiftType.OFF -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Inline selected-day card — replaces ModalBottomSheet
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SelectedDayCard(
+    selectedDate: LocalDate?,
+    shiftDays: List<ShiftDay>,
+    employees: List<Employee>,
+    selectedEmployeeIds: Set<Long>,
+    onDismiss: () -> Unit
+) {
+    val dateHeaderFormatter = remember {
+        DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.getDefault())
+    }
+    val timeFormatter = remember {
+        DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        tonalElevation = 1.dp,
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp)
+            .animateContentSize()
+    ) {
+        if (selectedDate == null) {
+            // ── Empty / no-selection state ────────────────────────────────────
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CalendarMonth,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "Tap a day to see scheduled shifts",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            // ── Selected state ────────────────────────────────────────────────
+            val filteredShifts = shiftDays
+                .find { it.date == selectedDate }
+                ?.shifts
+                ?.filter { selectedEmployeeIds.isEmpty() || it.employeeId in selectedEmployeeIds }
+                ?: emptyList()
+
+            val employeeMap = employees.associateBy { it.id }
+
+            Column {
+                // Header row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = selectedDate.format(dateHeaderFormatter),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (filteredShifts.size > 1) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "BUSY",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+
+                if (filteredShifts.isEmpty()) {
+                    Text(
+                        text = "No shifts scheduled",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                } else {
+                    filteredShifts.forEachIndexed { index, shift ->
+                        val employee = employeeMap[shift.employeeId]
+                        val shiftColor = shiftTypeColor(shift.shiftType)
+                        val dotColor = employee?.let {
+                            try { Color(android.graphics.Color.parseColor(it.color)) }
+                            catch (_: Exception) { MaterialTheme.colorScheme.primary }
+                        } ?: MaterialTheme.colorScheme.primary
+
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = employee?.name ?: "Unknown",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Surface(
+                                color = shiftColor.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = shift.shiftType.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = shiftColor,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "${shift.startTime.format(timeFormatter)} – ${shift.endTime.format(timeFormatter)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (index < filteredShifts.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
