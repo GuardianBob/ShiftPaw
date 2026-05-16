@@ -1,12 +1,10 @@
 package com.example.shiftpaw.data.parser
 
-import android.content.Context
 import com.example.shiftpaw.data.local.entity.ShiftEntity
 import com.example.shiftpaw.domain.model.ShiftType
 import org.apache.poi.xwpf.usermodel.XWPFDocument
 import java.io.InputStream
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,86 +12,163 @@ import javax.inject.Singleton
  * Parses VetCalendar schedule DOCX files into [ShiftEntity] records.
  *
  * Document format (per DOCX_PARSER_SPEC.md):
- * - Title row: month name + year (e.g. "Január 2026")
- * - Header row: date columns (1..31)
- * - Data rows: employee name | shift codes per day
+ * - 14 columns in paired layout (col 0,2,4... = date numbers; col 1,3,5... = employee initials)
+ * - Header row: weekday names (Monday..Sunday) — skip
+ * - Date row: ≥2 numeric cells — sets current date mapping
+ * - Shift row: first cell is a known shift name (Day, Swing 1, Swing 2, Night)
  *
- * Shift codes: D = Day, E = Evening, N = Night, OC = On-Call, "" = Off
+ * Employee initials (e.g. "JD", "MS") are used as names.
+ * Temp IDs are 1-based sequential, matching index in [ParseResult.employeeNames].
  */
 @Singleton
 class DocxScheduleParser @Inject constructor() {
 
     data class ParseResult(
         val shifts: List<ShiftEntity>,
-        val scheduleMonth: String,    // yyyy-MM
+        /** Schedule month as "yyyy-MM" */
+        val scheduleMonth: String,
+        /** Unique employee names/initials in order of first appearance. Index+1 = tempId. */
         val employeeNames: List<String>,
         val errors: List<String>
     )
 
+    companion object {
+        private val SHIFT_TIMES = mapOf(
+            "day"     to Pair("07:00", "19:00"),
+            "swing 1" to Pair("10:00", "22:00"),
+            "swing1"  to Pair("10:00", "22:00"),
+            "swing 2" to Pair("14:00", "02:00"),
+            "swing2"  to Pair("14:00", "02:00"),
+            "night"   to Pair("18:00", "06:00"),
+        )
+        private val SHIFT_TYPE_MAP = mapOf(
+            "day"     to ShiftType.DAY,
+            "swing 1" to ShiftType.EVENING,
+            "swing1"  to ShiftType.EVENING,
+            "swing 2" to ShiftType.ON_CALL,
+            "swing2"  to ShiftType.ON_CALL,
+            "night"   to ShiftType.NIGHT,
+        )
+        private val DAY_NAMES = setOf(
+            "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+        )
+        private val MONTH_NAMES = mapOf(
+            "january" to "01", "february" to "02", "march" to "03", "april" to "04",
+            "may" to "05", "june" to "06", "july" to "07", "august" to "08",
+            "september" to "09", "october" to "10", "november" to "11", "december" to "12",
+            // Hungarian equivalents (from task spec)
+            "januar" to "01", "januar\u00e1s" to "01",
+            "februar" to "02", "febru\u00e1r" to "02",
+            "marcius" to "03", "m\u00e1rcius" to "03",
+            "aprilis" to "04", "\u00e1prilis" to "04",
+            "majus" to "05", "m\u00e1jus" to "05",
+            "junius" to "06", "j\u00fanius" to "06",
+            "julius" to "07", "j\u00falius" to "07",
+            "augusztus" to "08",
+            "szeptember" to "09",
+            "oktober" to "10", "okt\u00f3ber" to "10",
+            "november" to "11",
+            "december" to "12",
+        )
+    }
+
     fun parse(inputStream: InputStream, fileName: String): ParseResult {
         val errors = mutableListOf<String>()
         val shifts = mutableListOf<ShiftEntity>()
-        val employeeNames = mutableListOf<String>()
+        // Track unique employee initials in first-encounter order
+        val employeeOrder = mutableListOf<String>()   // index+1 = tempId
+        val employeeTempIds = mutableMapOf<String, Long>() // initials -> tempId
+
+        val scheduleMonth = parseScheduleMonthFromFileName(fileName, errors)
+        val yearStr = scheduleMonth.substringBefore("-")
+        val monthStr = scheduleMonth.substringAfter("-")
 
         try {
             val doc = XWPFDocument(inputStream)
             val tables = doc.tables
+
             if (tables.isEmpty()) {
-                return ParseResult(emptyList(), "", emptyList(), listOf("No tables found in document"))
+                return ParseResult(emptyList(), scheduleMonth, emptyList(),
+                    listOf("No tables found in document"))
             }
 
-            val table = tables[0]
-            val rows = table.rows
-            if (rows.size < 3) {
-                return ParseResult(emptyList(), "", emptyList(), listOf("Table too small"))
-            }
-
-            // Row 0: title — extract month/year
-            val titleText = rows[0].getCell(0)?.text?.trim() ?: ""
-            val scheduleMonth = parseScheduleMonth(titleText, fileName, errors)
-
-            // Row 1: header — day numbers
-            val headerRow = rows[1]
-            val dayColumns = mutableMapOf<Int, Int>() // colIndex -> dayOfMonth
-            for (colIdx in 1 until headerRow.tableCells.size) {
-                val cellText = headerRow.getCell(colIdx)?.text?.trim() ?: continue
-                val day = cellText.toIntOrNull() ?: continue
-                dayColumns[colIdx] = day
-            }
-
-            // Rows 2+: employee data
-            var employeeId = 1L  // temporary IDs — caller must resolve against DB
-            for (rowIdx in 2 until rows.size) {
-                val row = rows[rowIdx]
-                val nameCell = row.getCell(0)?.text?.trim() ?: continue
-                if (nameCell.isEmpty()) continue
-
-                employeeNames.add(nameCell)
-
-                for ((colIdx, day) in dayColumns) {
-                    val cellText = row.getCell(colIdx)?.text?.trim() ?: ""
-                    val shiftType = parseShiftCode(cellText) ?: continue
-                    if (shiftType == ShiftType.OFF) continue  // don't store explicit offs
-
-                    val date = try {
-                        LocalDate.parse("${scheduleMonth}-${day.toString().padStart(2, '0')}")
-                    } catch (e: Exception) {
-                        errors.add("Invalid date: $scheduleMonth-$day")
-                        continue
-                    }
-
-                    shifts.add(
-                        ShiftEntity(
-                            employeeId = employeeId,
-                            date = date.toString(),
-                            startTime = shiftType.defaultStart(),
-                            endTime = shiftType.defaultEnd(),
-                            shiftType = shiftType.name,
-                            sourceScheduleDate = scheduleMonth
-                        )
-                    )
+            for (table in tables) {
+                val firstRowCells = table.rows.firstOrNull()?.tableCells?.size ?: 0
+                // Must have at least 8 columns and an even number
+                if (firstRowCells < 8 || firstRowCells % 2 != 0) {
+                    errors.add("Skipped table with $firstRowCells columns (expected even ≥ 8)")
+                    continue
                 }
-                employeeId++
+                val numDayColumns = firstRowCells / 2
+                // currentDates maps col-index (0..numDayColumns-1) -> day-of-month string
+                val currentDates = mutableMapOf<Int, String>()
+
+                for (row in table.rows) {
+                    val cells = row.tableCells.map { it.text.trim() }
+                    if (cells.all { it.isEmpty() }) continue
+
+                    when {
+                        isDayHeaderRow(cells) -> {
+                            currentDates.clear()
+                        }
+                        isDateRow(cells) -> {
+                            currentDates.clear()
+                            for (colIdx in 0 until numDayColumns) {
+                                val cellPos = colIdx * 2
+                                if (cellPos < cells.size) {
+                                    val cellVal = cells[cellPos].trim()
+                                    if (cellVal.all { it.isDigit() } && cellVal.isNotEmpty()) {
+                                        val dayNum = cellVal.toInt()
+                                        try {
+                                            LocalDate.of(yearStr.toInt(), monthStr.toInt(), dayNum)
+                                            currentDates[colIdx] = cellVal
+                                        } catch (_: Exception) {
+                                            // Invalid day for this month — skip silently
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        isShiftRow(cells) -> {
+                            val shiftName = cells[0].trim().lowercase()
+                            val (startTime, endTime) = SHIFT_TIMES[shiftName] ?: ("07:00" to "19:00")
+                            val shiftType = SHIFT_TYPE_MAP[shiftName] ?: ShiftType.DAY
+
+                            for (colIdx in 0 until numDayColumns) {
+                                val dateStr = currentDates[colIdx] ?: continue
+                                val employeeCellPos = colIdx * 2 + 1
+                                if (employeeCellPos >= cells.size) continue
+                                val initials = cells[employeeCellPos].trim()
+                                if (initials.isEmpty()) continue
+
+                                // Resolve temp ID
+                                val tempId = employeeTempIds.getOrPut(initials) {
+                                    employeeOrder.add(initials)
+                                    employeeOrder.size.toLong()
+                                }
+
+                                try {
+                                    val date = LocalDate.of(
+                                        yearStr.toInt(), monthStr.toInt(), dateStr.toInt()
+                                    )
+                                    shifts.add(
+                                        ShiftEntity(
+                                            employeeId = tempId,
+                                            date = date.toString(),
+                                            startTime = startTime,
+                                            endTime = endTime,
+                                            shiftType = shiftType.name,
+                                            sourceScheduleDate = scheduleMonth
+                                        )
+                                    )
+                                } catch (e: Exception) {
+                                    errors.add("Skipped invalid shift date $yearStr-$monthStr-$dateStr: ${e.message}")
+                                }
+                            }
+                        }
+                        // else: unknown row type, skip
+                    }
+                }
             }
 
             doc.close()
@@ -101,42 +176,61 @@ class DocxScheduleParser @Inject constructor() {
             errors.add("Parse failed: ${e.message}")
         }
 
-        return ParseResult(shifts, "", employeeNames, errors)
+        return ParseResult(shifts, scheduleMonth, employeeOrder.toList(), errors)
     }
 
-    private fun parseScheduleMonth(title: String, fileName: String, errors: MutableList<String>): String {
-        // Try to extract from filename pattern like "2026-01" or "January_2026"
-        val yearMonthRegex = Regex("""(\d{4})[_\-](\d{2})""")
-        yearMonthRegex.find(fileName)?.let { match ->
-            return "${match.groupValues[1]}-${match.groupValues[2]}"
+    // ── Row classification ────────────────────────────────────────────────────
+
+    private fun isDayHeaderRow(cells: List<String>): Boolean {
+        var matches = 0
+        for (cell in cells) {
+            val lower = cell.lowercase().trim()
+            if (DAY_NAMES.any { it in lower }) matches++
         }
-        // Fallback: use current month
-        errors.add("Could not parse schedule month from title '$title', using current month")
-        return LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM"))
+        return matches >= 6
     }
 
-    private fun parseShiftCode(code: String): ShiftType? = when (code.uppercase().trim()) {
-        "D", "DAY", "R"       -> ShiftType.DAY
-        "E", "EVE", "EVENING" -> ShiftType.EVENING
-        "N", "NIGHT", "É"     -> ShiftType.NIGHT
-        "OC", "ON_CALL", "K"  -> ShiftType.ON_CALL
-        ""                    -> ShiftType.OFF
-        else                  -> null  // unknown code — skip
+    private fun isDateRow(cells: List<String>): Boolean {
+        var numericCount = 0
+        for (cell in cells) {
+            val t = cell.trim()
+            if (t.isNotEmpty() && t.all { it.isDigit() }) numericCount++
+        }
+        return numericCount >= 2
     }
 
-    private fun ShiftType.defaultStart(): String = when (this) {
-        ShiftType.DAY     -> "07:00"
-        ShiftType.EVENING -> "15:00"
-        ShiftType.NIGHT   -> "23:00"
-        ShiftType.ON_CALL -> "08:00"
-        ShiftType.OFF     -> "00:00"
+    private fun isShiftRow(cells: List<String>): Boolean {
+        if (cells.isEmpty()) return false
+        return cells[0].trim().lowercase() in SHIFT_TIMES
     }
 
-    private fun ShiftType.defaultEnd(): String = when (this) {
-        ShiftType.DAY     -> "15:00"
-        ShiftType.EVENING -> "23:00"
-        ShiftType.NIGHT   -> "07:00"
-        ShiftType.ON_CALL -> "08:00"
-        ShiftType.OFF     -> "00:00"
+    // ── Month extraction ──────────────────────────────────────────────────────
+
+    private fun parseScheduleMonthFromFileName(
+        fileName: String, errors: MutableList<String>
+    ): String {
+        val baseName = fileName.substringBeforeLast(".").trim()
+
+        // Pattern: "yyyy-MM" anywhere in filename
+        val isoPattern = Regex("""(\d{4})[_\-](\d{2})""")
+        isoPattern.find(fileName)?.let {
+            return "${it.groupValues[1]}-${it.groupValues[2]}"
+        }
+
+        // Pattern: English/Hungarian month name + 4-digit year (or reverse)
+        val yearPattern = Regex("""\b(\d{4})\b""")
+        val yearMatch = yearPattern.find(baseName)
+        val year = yearMatch?.groupValues?.get(1) ?: LocalDate.now().year.toString()
+
+        val lowerName = baseName.lowercase()
+        for ((monthName, monthNum) in MONTH_NAMES) {
+            if (monthName in lowerName) {
+                return "$year-$monthNum"
+            }
+        }
+
+        errors.add("Could not parse schedule month from filename '$fileName', using current month")
+        val now = LocalDate.now()
+        return "${now.year}-${now.monthValue.toString().padStart(2, '0')}"
     }
 }
