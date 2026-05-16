@@ -93,13 +93,13 @@ class DocxScheduleParser @Inject constructor() {
             }
 
             for (table in tables) {
-                val firstRowCells = table.rows.firstOrNull()?.tableCells?.size ?: 0
-                // Must have at least 8 columns and an even number
-                if (firstRowCells < 8 || firstRowCells % 2 != 0) {
-                    errors.add("Skipped table with $firstRowCells columns (expected even ≥ 8)")
+                val maxCols = table.rows.maxOfOrNull { it.tableCells.size } ?: 0
+                // Must have at least 8 columns and an even number (shift rows have 14 cells)
+                if (maxCols < 8 || maxCols % 2 != 0) {
+                    errors.add("Skipped table with $maxCols columns (expected even ≥ 8)")
                     continue
                 }
-                val numDayColumns = firstRowCells / 2
+                val numDayColumns = maxCols / 2
                 // currentDates maps col-index (0..numDayColumns-1) -> day-of-month string
                 val currentDates = mutableMapOf<Int, String>()
 
@@ -113,10 +113,10 @@ class DocxScheduleParser @Inject constructor() {
                         }
                         isDateRow(cells) -> {
                             currentDates.clear()
+                            // Date rows have 7 cells (one per weekday col), indexed directly
                             for (colIdx in 0 until numDayColumns) {
-                                val cellPos = colIdx * 2
-                                if (cellPos < cells.size) {
-                                    val cellVal = cells[cellPos].trim()
+                                if (colIdx < cells.size) {
+                                    val cellVal = cells[colIdx].trim()
                                     if (cellVal.all { it.isDigit() } && cellVal.isNotEmpty()) {
                                         val dayNum = cellVal.toInt()
                                         try {
