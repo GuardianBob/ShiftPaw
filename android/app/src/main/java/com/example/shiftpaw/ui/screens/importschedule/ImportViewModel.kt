@@ -102,14 +102,20 @@ class ImportViewModel @Inject constructor(
                 // Resolve / create employees; get tempId -> realId map
                 val idMap = resolver.resolveOrCreate(parseResult.employeeNames)
 
-                // Remap shifts: replace temp employeeId with real DB id
+                // Remap shifts: replace temp employeeId with real DB id,
+                // and update the date field to use the user-confirmed month
                 val remappedShifts = parseResult.shifts.mapNotNull { shift ->
                     val realId = idMap[shift.employeeId]
                     if (realId == null || realId == 0L) null  // skip unresolvable
-                    else shift.copy(
-                        employeeId = realId,
-                        sourceScheduleDate = confirmedMonth
-                    )
+                    else {
+                        // Replace the year-month portion of the date with the confirmed month
+                        val correctedDate = "$confirmedMonth-${shift.date.substringAfterLast("-")}"
+                        shift.copy(
+                            employeeId = realId,
+                            date = correctedDate,
+                            sourceScheduleDate = confirmedMonth
+                        )
+                    }
                 }
 
                 shiftRepository.importShifts(remappedShifts, confirmedMonth, cachedFileName)
