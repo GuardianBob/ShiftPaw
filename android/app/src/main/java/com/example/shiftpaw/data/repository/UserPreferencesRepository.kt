@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.map
@@ -16,7 +17,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 data class UserPreferences(
     val selectedEmployeeId: Long = -1L,
-    val lastViewedMonth: String = ""  // yyyy-MM
+    val lastViewedMonth: String = "",  // yyyy-MM
+    val primaryEmployeeId: Long = -1L
 )
 
 @Singleton
@@ -26,12 +28,14 @@ class UserPreferencesRepository @Inject constructor(
     private object Keys {
         val SELECTED_EMPLOYEE_ID = longPreferencesKey("selected_employee_id")
         val LAST_VIEWED_MONTH = stringPreferencesKey("last_viewed_month")
+        val PRIMARY_EMPLOYEE_ID = longPreferencesKey("primary_employee_id")
     }
 
     val preferences = context.dataStore.data.map { prefs ->
         UserPreferences(
             selectedEmployeeId = prefs[Keys.SELECTED_EMPLOYEE_ID] ?: -1L,
-            lastViewedMonth = prefs[Keys.LAST_VIEWED_MONTH] ?: ""
+            lastViewedMonth = prefs[Keys.LAST_VIEWED_MONTH] ?: "",
+            primaryEmployeeId = prefs[Keys.PRIMARY_EMPLOYEE_ID] ?: -1L
         )
     }
 

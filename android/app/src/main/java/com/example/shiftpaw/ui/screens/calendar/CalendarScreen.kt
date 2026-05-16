@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,7 +24,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -35,10 +39,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +62,7 @@ import com.example.shiftpaw.domain.model.ShiftDay
 import com.example.shiftpaw.domain.model.ShiftType
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.Month
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -68,7 +78,7 @@ fun CalendarScreen(
     val shiftDays by viewModel.shiftDays.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
     val employees by viewModel.employees.collectAsState()
-    val selectedEmployeeId by viewModel.selectedEmployeeId.collectAsState()
+    val selectedEmployeeIds by viewModel.selectedEmployeeIds.collectAsState()
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -92,7 +102,8 @@ fun CalendarScreen(
         MonthHeader(
             month = currentMonth,
             onPrev = viewModel::prevMonth,
-            onNext = viewModel::nextMonth
+            onNext = viewModel::nextMonth,
+            onJumpToMonth = viewModel::jumpToMonth
         )
 
         Spacer(Modifier.height(8.dp))
@@ -108,7 +119,7 @@ fun CalendarScreen(
             shiftDays = shiftDays,
             employees = employees,
             selectedDate = selectedDate,
-            selectedEmployeeId = selectedEmployeeId,
+            selectedEmployeeIds = selectedEmployeeIds,
             onDayClick = viewModel::selectDate
         )
 
@@ -117,8 +128,9 @@ fun CalendarScreen(
         // Employee filter chips
         EmployeeFilterRow(
             employees = employees,
-            selectedEmployeeId = selectedEmployeeId,
-            onSelectEmployee = viewModel::selectEmployee
+            selectedEmployeeIds = selectedEmployeeIds,
+            onToggleEmployee = viewModel::toggleEmployee,
+            onClearFilter = viewModel::clearEmployeeFilter
         )
 
         Spacer(Modifier.height(8.dp))
@@ -129,7 +141,7 @@ fun CalendarScreen(
         val dayShifts = shiftDays
             .find { it.date == selectedDate }
             ?.shifts
-            ?.filter { selectedEmployeeId == -1L || it.employeeId == selectedEmployeeId }
+            ?.filter { selectedEmployeeIds.isEmpty() || it.employeeId in selectedEmployeeIds }
             ?: emptyList()
 
         ModalBottomSheet(
@@ -150,9 +162,15 @@ fun CalendarScreen(
 private fun MonthHeader(
     month: YearMonth,
     onPrev: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onJumpToMonth: (YearMonth) -> Unit
 ) {
     val formatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+
+    var showPicker by remember { mutableStateOf(false) }
+    var pickerYear by remember(month) { mutableIntStateOf(month.year) }
+    var pickerMonth by remember(month) { mutableIntStateOf(month.monthValue) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -161,14 +179,87 @@ private fun MonthHeader(
         IconButton(onClick = onPrev) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
         }
-        Text(
-            text = month.format(formatter),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.clickable { showPicker = true },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = month.format(formatter),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Icon(
+                imageVector = Icons.Filled.ArrowDropDown,
+                contentDescription = "Pick month",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         IconButton(onClick = onNext) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
         }
+    }
+
+    if (showPicker) {
+        AlertDialog(
+            onDismissRequest = { showPicker = false },
+            title = {
+                // Year selector row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { pickerYear-- }) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous year")
+                    }
+                    Text(
+                        text = pickerYear.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    IconButton(onClick = { pickerYear++ }) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next year")
+                    }
+                }
+            },
+            text = {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(12) { idx ->
+                        val m = idx + 1
+                        val isSelected = pickerMonth == m && pickerYear == month.year
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { pickerMonth = m },
+                            label = {
+                                Text(
+                                    text = Month.of(m).getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPicker = false
+                    onJumpToMonth(YearMonth.of(pickerYear, pickerMonth))
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -195,14 +286,12 @@ private fun CalendarGrid(
     shiftDays: List<ShiftDay>,
     employees: List<Employee>,
     selectedDate: LocalDate?,
-    selectedEmployeeId: Long,
+    selectedEmployeeIds: Set<Long>,
     onDayClick: (LocalDate) -> Unit
 ) {
     val firstDay = month.atDay(1)
-    // Monday = 0 offset
     val startOffset = (firstDay.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
     val daysInMonth = month.lengthOfMonth()
-    val totalCells = 42 // 6 rows × 7 cols
 
     val shiftDayMap = shiftDays.associateBy { it.date }
     val employeeMap = employees.associateBy { it.id }
@@ -223,7 +312,7 @@ private fun CalendarGrid(
                         shiftDay = date?.let { shiftDayMap[it] },
                         employees = employeeMap,
                         isSelected = date != null && date == selectedDate,
-                        selectedEmployeeId = selectedEmployeeId,
+                        selectedEmployeeIds = selectedEmployeeIds,
                         onClick = { if (date != null) onDayClick(date) }
                     )
                 }
@@ -240,14 +329,14 @@ private fun DayCell(
     shiftDay: ShiftDay?,
     employees: Map<Long, Employee>,
     isSelected: Boolean,
-    selectedEmployeeId: Long,
+    selectedEmployeeIds: Set<Long>,
     onClick: () -> Unit
 ) {
     val today = LocalDate.now()
     val isToday = date != null && date == today
 
     val filteredShifts = shiftDay?.shifts?.filter {
-        selectedEmployeeId == -1L || it.employeeId == selectedEmployeeId
+        selectedEmployeeIds.isEmpty() || it.employeeId in selectedEmployeeIds
     } ?: emptyList()
 
     Box(
@@ -285,7 +374,6 @@ private fun DayCell(
                         else -> MaterialTheme.colorScheme.onSurface
                     }
                 )
-                // Colored dots
                 if (filteredShifts.isNotEmpty()) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -318,8 +406,9 @@ private fun DayCell(
 @Composable
 private fun EmployeeFilterRow(
     employees: List<Employee>,
-    selectedEmployeeId: Long,
-    onSelectEmployee: (Long) -> Unit
+    selectedEmployeeIds: Set<Long>,
+    onToggleEmployee: (Long) -> Unit,
+    onClearFilter: () -> Unit
 ) {
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -327,8 +416,8 @@ private fun EmployeeFilterRow(
     ) {
         item {
             FilterChip(
-                selected = selectedEmployeeId == -1L,
-                onClick = { onSelectEmployee(-1L) },
+                selected = selectedEmployeeIds.isEmpty(),
+                onClick = onClearFilter,
                 label = { Text("All") },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
@@ -343,8 +432,8 @@ private fun EmployeeFilterRow(
                 MaterialTheme.colorScheme.primary
             }
             FilterChip(
-                selected = selectedEmployeeId == emp.id,
-                onClick = { onSelectEmployee(emp.id) },
+                selected = emp.id in selectedEmployeeIds,
+                onClick = { onToggleEmployee(emp.id) },
                 label = { Text(emp.name) },
                 leadingIcon = {
                     Box(

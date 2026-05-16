@@ -10,8 +10,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -36,15 +36,23 @@ class CalendarViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val selectedEmployeeId: StateFlow<Long> = prefsRepository.preferences
-        .map { it.selectedEmployeeId }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), -1L)
-
     val employees: StateFlow<List<Employee>> = shiftRepository.getActiveEmployees()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _selectedEmployeeIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedEmployeeIds: StateFlow<Set<Long>> = _selectedEmployeeIds
+
     private val _selectedDate = MutableStateFlow<LocalDate?>(null)
     val selectedDate: StateFlow<LocalDate?> = _selectedDate
+
+    init {
+        viewModelScope.launch {
+            val prefs = prefsRepository.preferences.first()
+            if (prefs.primaryEmployeeId > 0L) {
+                _selectedEmployeeIds.value = setOf(prefs.primaryEmployeeId)
+            }
+        }
+    }
 
     fun prevMonth() {
         val newMonth = _currentMonth.value.minusMonths(1)
@@ -62,6 +70,13 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun jumpToMonth(month: YearMonth) {
+        _currentMonth.value = month
+        viewModelScope.launch {
+            prefsRepository.setLastViewedMonth(month.format(monthFormatter))
+        }
+    }
+
     fun selectDate(date: LocalDate) {
         _selectedDate.value = if (_selectedDate.value == date) null else date
     }
@@ -70,9 +85,15 @@ class CalendarViewModel @Inject constructor(
         _selectedDate.value = null
     }
 
-    fun selectEmployee(id: Long) {
-        viewModelScope.launch {
-            prefsRepository.setSelectedEmployee(id)
-        }
+    fun toggleEmployee(id: Long) {
+        val current = _selectedEmployeeIds.value
+        _selectedEmployeeIds.value = if (id in current) current - id else current + id
     }
+
+    fun clearEmployeeFilter() {
+        _selectedEmployeeIds.value = emptySet()
+    }
+
+    /** Legacy stub — delegates to toggleEmployee for backward compat. */
+    fun selectEmployee(id: Long) = toggleEmployee(id)
 }
