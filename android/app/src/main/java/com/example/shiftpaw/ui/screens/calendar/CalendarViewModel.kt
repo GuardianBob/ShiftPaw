@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -40,17 +39,16 @@ class CalendarViewModel @Inject constructor(
     val employees: StateFlow<List<Employee>> = shiftRepository.getActiveEmployees()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _selectedDate = MutableStateFlow<LocalDate?>(null)
-    val selectedDate: StateFlow<LocalDate?> = _selectedDate
-
     private val _selectedEmployeeIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedEmployeeIds: StateFlow<Set<Long>> = _selectedEmployeeIds
 
+    private val _selectedDate = MutableStateFlow<LocalDate?>(null)
+    val selectedDate: StateFlow<LocalDate?> = _selectedDate
+
     init {
-        // Pre-select primary employee on first launch if no filter is active
         viewModelScope.launch {
             val prefs = prefsRepository.preferences.first()
-            if (_selectedEmployeeIds.value.isEmpty() && prefs.primaryEmployeeId != -1L) {
+            if (prefs.primaryEmployeeId > 0L) {
                 _selectedEmployeeIds.value = setOf(prefs.primaryEmployeeId)
             }
         }
@@ -72,6 +70,13 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun jumpToMonth(month: YearMonth) {
+        _currentMonth.value = month
+        viewModelScope.launch {
+            prefsRepository.setLastViewedMonth(month.format(monthFormatter))
+        }
+    }
+
     fun selectDate(date: LocalDate) {
         _selectedDate.value = if (_selectedDate.value == date) null else date
     }
@@ -81,15 +86,14 @@ class CalendarViewModel @Inject constructor(
     }
 
     fun toggleEmployee(id: Long) {
-        _selectedEmployeeIds.update { current ->
-            if (id in current) current - id else current + id
-        }
+        val current = _selectedEmployeeIds.value
+        _selectedEmployeeIds.value = if (id in current) current - id else current + id
     }
 
     fun clearEmployeeFilter() {
         _selectedEmployeeIds.value = emptySet()
     }
 
-    // Legacy compat — used by CalendarScreen until full Task 1 wiring is merged
+    /** Legacy stub — delegates to toggleEmployee for backward compat. */
     fun selectEmployee(id: Long) = toggleEmployee(id)
 }
