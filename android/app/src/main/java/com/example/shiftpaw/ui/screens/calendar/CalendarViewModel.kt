@@ -42,7 +42,7 @@ class CalendarViewModel @Inject constructor(
     private val _selectedEmployeeIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedEmployeeIds: StateFlow<Set<Long>> = _selectedEmployeeIds
 
-    private val _selectedDate = MutableStateFlow<LocalDate?>(null)
+    private val _selectedDate = MutableStateFlow<LocalDate?>(LocalDate.now())
     val selectedDate: StateFlow<LocalDate?> = _selectedDate
 
     init {
