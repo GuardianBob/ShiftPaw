@@ -10,8 +10,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -44,6 +46,16 @@ class CalendarViewModel @Inject constructor(
     private val _selectedEmployeeIds = MutableStateFlow<Set<Long>>(emptySet())
     val selectedEmployeeIds: StateFlow<Set<Long>> = _selectedEmployeeIds
 
+    init {
+        // Pre-select primary employee on first launch if no filter is active
+        viewModelScope.launch {
+            val prefs = prefsRepository.preferences.first()
+            if (_selectedEmployeeIds.value.isEmpty() && prefs.primaryEmployeeId != -1L) {
+                _selectedEmployeeIds.value = setOf(prefs.primaryEmployeeId)
+            }
+        }
+    }
+
     fun prevMonth() {
         val newMonth = _currentMonth.value.minusMonths(1)
         _currentMonth.value = newMonth
@@ -68,17 +80,16 @@ class CalendarViewModel @Inject constructor(
         _selectedDate.value = null
     }
 
-    fun selectEmployee(id: Long) {
-        // Legacy stub — use toggleEmployee for multi-select
-        toggleEmployee(id)
-    }
-
     fun toggleEmployee(id: Long) {
-        val current = _selectedEmployeeIds.value
-        _selectedEmployeeIds.value = if (id in current) current - id else current + id
+        _selectedEmployeeIds.update { current ->
+            if (id in current) current - id else current + id
+        }
     }
 
     fun clearEmployeeFilter() {
         _selectedEmployeeIds.value = emptySet()
     }
+
+    // Legacy compat — used by CalendarScreen until full Task 1 wiring is merged
+    fun selectEmployee(id: Long) = toggleEmployee(id)
 }

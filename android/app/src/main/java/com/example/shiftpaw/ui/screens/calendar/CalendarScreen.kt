@@ -200,10 +200,8 @@ private fun CalendarGrid(
     onDayClick: (LocalDate) -> Unit
 ) {
     val firstDay = month.atDay(1)
-    // Monday = 0 offset
     val startOffset = (firstDay.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
     val daysInMonth = month.lengthOfMonth()
-    val totalCells = 42 // 6 rows × 7 cols
 
     val shiftDayMap = shiftDays.associateBy { it.date }
     val employeeMap = employees.associateBy { it.id }
@@ -286,7 +284,6 @@ private fun DayCell(
                         else -> MaterialTheme.colorScheme.onSurface
                     }
                 )
-                // Colored dots
                 if (filteredShifts.isNotEmpty()) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
