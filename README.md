@@ -1,5 +1,6 @@
 # ShiftPaw 🐾 v1.1
 
+
 A native Android application for veterinary clinic staff to view, search, and filter work schedules. ShiftPaw simplifies schedule management by allowing vets to upload distributed DOCX-based schedules and access them through an intuitive, mobile-friendly interface.
 
 **Status:** First Android app prototype (Phase 1 complete)  
@@ -7,6 +8,12 @@ A native Android application for veterinary clinic staff to view, search, and fi
 **Architecture:** MVVM + Clean Architecture with Jetpack Compose
 
 ---
+
+
+<p align="center">
+    <img src="screenshots/Screenshot 2026-05-16 102318.png" alt="ShiftPaw screenshot placeholder" width="600" />
+    <img src="screenshots/Screenshot 2026-05-16 102305.png" alt="ShiftPaw screenshot placeholder" width="600" />
+</p>
 
 ## 🎯 Purpose
 
