@@ -11,8 +11,8 @@ A native Android application for veterinary clinic staff to view, search, and fi
 
 
 <p align="center">
-    <img src="screenshots/Screenshot 2026-05-16 102318.png" alt="ShiftPaw screenshot placeholder" width="600" />
-    <img src="screenshots/Screenshot 2026-05-16 102305.png" alt="ShiftPaw screenshot placeholder" width="600" />
+    <img src="screenshots/Screenshot 2026-05-16 102318.png" alt="ShiftPaw screenshot placeholder" width="250" />
+    <img src="screenshots/Screenshot 2026-05-16 102305.png" alt="ShiftPaw screenshot placeholder" width="250" />
 </p>
 
 ## 🎯 Purpose
